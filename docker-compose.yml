@@ -1,0 +1,10 @@
+services:
+  tgdrive:
+    build: .
+    container_name: tgdrive
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8080:8080"   # put a reverse proxy with HTTPS in front to reach it from anywhere
+    volumes:
+      - ./data:/data
