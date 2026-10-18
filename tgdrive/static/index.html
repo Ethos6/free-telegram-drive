@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Telegram Drive</title>
+  <meta name="description" content="Unlimited, encrypted storage in your Telegram accounts.">
+  <meta name="theme-color" content="#0f766e">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/static/icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <!-- Sign in / first-run setup -->
+  <section id="auth" class="auth" hidden>
+    <form id="auth-form" class="card auth-card" novalidate>
+      <img src="/static/icons/icon-192.png" alt="" width="56" height="56">
+      <h1 id="auth-title">Sign in to Telegram Drive</h1>
+      <p id="auth-hint" class="muted"></p>
+      <label id="setup-code-row" hidden>Setup code
+        <input id="setup-code" name="setup_code" autocomplete="one-time-code" spellcheck="false">
+      </label>
+      <label>Password
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <label id="code-row">2FA code <span class="muted">(only if you turned it on)</span>
+        <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*">
+      </label>
+      <p id="auth-error" class="error" role="alert"></p>
+      <button class="btn primary" type="submit" id="auth-submit">Sign in</button>
+    </form>
+  </section>
+
+  <!-- App -->
+  <div id="app" hidden>
+    <header class="topbar">
+      <a class="brand" href="#/files/"><img src="/static/icons/icon-192.png" alt="" width="28" height="28"><span>Telegram Drive</span></a>
+      <form id="search-form" class="search" role="search">
+        <label class="sr-only" for="search">Search all accounts</label>
+        <input id="search" type="search" placeholder="Search all accounts" autocomplete="off">
+      </form>
+      <nav class="nav" aria-label="Main">
+        <a href="#/files/" data-nav="files">Files</a>
+        <a href="#/accounts" data-nav="accounts">Accounts</a>
+        <a href="#/settings" data-nav="settings">Settings</a>
+        <button id="logout" class="btn ghost" type="button">Sign out</button>
+      </nav>
+    </header>
+    <div id="demo-banner" class="banner" hidden>Demo mode: sample Telegram accounts kept in memory. Nothing you do here is saved.</div>
+    <div id="account-errors" class="banner warn" role="status" hidden></div>
+
+    <main id="main" tabindex="-1">
+      <!-- Files -->
+      <section id="view-files" class="view" hidden>
+        <div class="files-head">
+          <nav id="crumbs" class="crumbs" aria-label="Folder path"></nav>
+          <div class="storage-mini" id="storage-mini" title="Combined storage"></div>
+        </div>
+        <div class="toolbar" role="toolbar" aria-label="File actions">
+          <button class="btn primary" type="button" id="btn-upload">Upload files</button>
+          <button class="btn" type="button" id="btn-upload-folder">Upload folder</button>
+          <button class="btn" type="button" id="btn-mkdir">New folder</button>
+          <button class="btn" type="button" id="btn-refresh" aria-label="Refresh">Refresh</button>
+          <span class="spacer"></span>
+          <span id="selection-info" class="muted"></span>
+          <button class="btn danger" type="button" id="btn-delete-selected" hidden>Delete selected</button>
+          <input id="file-input" type="file" multiple hidden>
+          <input id="folder-input" type="file" webkitdirectory multiple hidden>
+        </div>
+        <div id="search-head" class="search-head" hidden>
+          <h2 id="search-title"></h2>
+          <button class="btn ghost" type="button" id="btn-clear-search">Back to files</button>
+        </div>
+        <div class="table-wrap">
+          <table class="files" id="files-table">
+            <caption class="sr-only">Files and folders</caption>
+            <thead>
+              <tr>
+                <th class="col-check"><input type="checkbox" id="check-all" aria-label="Select all"></th>
+                <th>Name</th>
+                <th class="col-acc">Account</th>
+                <th class="col-size">Size</th>
+                <th class="col-date">Modified</th>
+                <th class="col-act"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="files-body"></tbody>
+          </table>
+          <p id="empty" class="empty" hidden></p>
+        </div>
+        <div id="drop" class="drop" hidden aria-hidden="true"><p>Drop files to upload here</p></div>
+      </section>
+
+      <!-- Vault (encryption key) setup -->
+      <section id="view-vault" class="view" hidden>
+        <h1>Set up encryption</h1>
+        <div class="card" id="vault-choose">
+          <p>Every file is encrypted on this server before it goes to Telegram. The key is created once and shown to you as a <strong>recovery key</strong>.</p>
+          <div class="inline-form">
+            <button class="btn primary" type="button" id="vault-new">Create a new vault</button>
+            <button class="btn" type="button" id="vault-restore-open">I have a recovery key</button>
+          </div>
+        </div>
+        <div class="card" id="vault-show" hidden>
+          <h2>Your recovery key</h2>
+          <p>Write it down or store it in a password manager. <strong>Without it, nobody (not even you) can recover your files</strong> if this server is lost.</p>
+          <p class="recovery"><code id="vault-key"></code> <button class="btn small" type="button" data-copy="#vault-key">Copy</button></p>
+          <label class="check"><input type="checkbox" id="vault-saved"> I have saved my recovery key</label>
+          <button class="btn primary" type="button" id="vault-continue" disabled>Continue</button>
+        </div>
+        <form class="card stack" id="vault-restore" hidden>
+          <h2>Restore with your recovery key</h2>
+          <label>Recovery key <input id="vault-restore-key" autocomplete="off" spellcheck="false" placeholder="ABCD-EFGH-..."></label>
+          <p class="error" id="vault-error" role="alert"></p>
+          <button class="btn primary" type="submit">Restore</button>
+          <p class="muted">Next, link the same Telegram accounts and choose <strong>Rebuild from Telegram</strong> in Settings to bring back all folders and files.</p>
+        </form>
+      </section>
+
+      <!-- Accounts -->
+      <section id="view-accounts" class="view" hidden>
+        <h1>Accounts</h1>
+        <div class="card" id="pool-card"></div>
+        <div id="accounts-list" class="accounts"></div>
+        <div class="card">
+          <h2>Add a Telegram account</h2>
+          <p class="muted">Sign in with the phone number of any Telegram account. Files are stored, encrypted, in that account's <strong>Saved Messages</strong>, and big files are spread over all your accounts.</p>
+          <form id="tg-form" class="stack">
+            <label id="tg-phone-row">Phone number (international format)
+              <input id="tg-phone" type="tel" autocomplete="tel" placeholder="+91 98765 43210">
+            </label>
+            <label id="tg-code-row" hidden>Login code Telegram sent you
+              <input id="tg-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+            </label>
+            <label id="tg-pw-row" hidden>Telegram password (two-step verification) <span id="tg-hint" class="muted"></span>
+              <input id="tg-password" type="password" autocomplete="off">
+            </label>
+            <p id="tg-error" class="error" role="alert"></p>
+            <div class="inline-form">
+              <button class="btn primary" type="submit" id="tg-submit">Send code</button>
+              <button class="btn ghost" type="button" id="tg-cancel" hidden>Start over</button>
+            </div>
+          </form>
+          <p id="tg-demo" class="notice" hidden>Demo: use phone <code>+1 555 0100</code> and code <code>12345</code>.</p>
+          <p id="tg-missing" class="warn-text" hidden>Telegram sign-in is not configured on this server yet. Set <code>TELEGRAM_API_ID</code> and <code>TELEGRAM_API_HASH</code> (see the README, section "Telegram setup"), then restart.</p>
+          <p class="muted small">Telegram Drive signs in as a normal Telegram app (it appears under Settings → Devices). Your Telegram password is sent to Telegram only and is never stored.</p>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section id="view-settings" class="view" hidden>
+        <h1>Settings</h1>
+        <div class="card">
+          <h2>Use it as a drive on your computer or phone (WebDAV)</h2>
+          <p>Address: <code id="dav-url"></code> <button class="btn small" type="button" data-copy="#dav-url">Copy</button></p>
+          <p class="muted">Sign in with any user name and an app password from below. Windows: File Explorer → This PC → Map network drive. macOS: Finder → Go → Connect to Server. Linux: your file manager, with a davs:// address. iPhone and Android: any WebDAV file manager app, or add this web app to your home screen. Use an <strong>https</strong> address when connecting over the internet.</p>
+          <h3>App passwords</h3>
+          <form id="app-pw-form" class="inline-form">
+            <label class="sr-only" for="app-pw-name">Name</label>
+            <input id="app-pw-name" placeholder="Name, e.g. Laptop" maxlength="60">
+            <button class="btn" type="submit">Create app password</button>
+          </form>
+          <p id="app-pw-new" class="notice" role="status" hidden></p>
+          <ul id="app-pw-list" class="plain-list"></ul>
+        </div>
+        <div class="card">
+          <h2>Encryption and backup</h2>
+          <p class="muted">Files and file names are encrypted with AES-256-GCM before they reach Telegram. An encrypted copy of the folder index is kept in Saved Messages so everything can be rebuilt on a new server.</p>
+          <p id="backup-info" class="muted"></p>
+          <div class="inline-form wrap">
+            <button class="btn" type="button" id="btn-show-key">Show recovery key</button>
+            <button class="btn" type="button" id="btn-backup">Back up index now</button>
+            <button class="btn" type="button" id="btn-rebuild">Rebuild from Telegram</button>
+            <button class="btn" type="button" id="btn-replace-key" hidden>Use a different recovery key</button>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Share links</h2>
+          <p class="muted">Anyone with a link can download that file until the link expires.</p>
+          <ul id="share-list" class="plain-list"></ul>
+        </div>
+        <div class="card">
+          <h2>Two-factor sign-in</h2>
+          <div id="totp-area"></div>
+        </div>
+        <div class="card">
+          <h2>Change password</h2>
+          <form id="pw-form" class="stack">
+            <label>Current password <input type="password" id="pw-current" autocomplete="current-password" required></label>
+            <label>New password (10+ characters) <input type="password" id="pw-new" autocomplete="new-password" minlength="10" required></label>
+            <button class="btn" type="submit">Change password</button>
+          </form>
+        </div>
+        <p class="muted" id="version"></p>
+      </section>
+    </main>
+  </div>
+
+  <!-- Dialogs -->
+  <dialog id="dlg" aria-labelledby="dlg-title">
+    <form method="dialog" id="dlg-form">
+      <h2 id="dlg-title"></h2>
+      <div id="dlg-body"></div>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" type="submit" id="dlg-cancel">Cancel</button>
+        <button class="btn primary" value="ok" type="submit" id="dlg-ok">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="preview" class="preview" aria-labelledby="preview-title">
+    <div class="preview-head">
+      <h2 id="preview-title"></h2>
+      <a class="btn small" id="preview-download" href="#">Download</a>
+      <button class="btn small" type="button" id="preview-close">Close</button>
+    </div>
+    <div id="preview-body" class="preview-body"></div>
+  </dialog>
+
+  <div id="menu" class="menu" role="menu" hidden></div>
+  <div id="uploads" class="uploads" aria-live="polite" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
