@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+
+  webdav-compliance:
+    # Runs the litmus WebDAV test suite against the demo server.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y litmus
+      - run: pip install -e .
+      - name: Start demo server with an app password
+        run: |
+          python scripts/litmus_server.py 8099 &
+          for i in $(seq 1 30); do curl -sf localhost:8099/healthz && break; sleep 1; done
+      - run: litmus http://127.0.0.1:8099/dav/ test litmus-app-password
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -t tgdrive:ci .
+      - run: |
+          docker run -d --name tgd -p 8080:8080 tgdrive:ci
+          for i in $(seq 1 30); do curl -sf localhost:8080/healthz && break; sleep 1; done
+          docker logs tgd | grep "setup code"
