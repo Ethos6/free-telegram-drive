@@ -139,6 +139,17 @@ your file ──► split into parts ──► AES-256-GCM, 4 MiB segments ─�
 SQLite index (paths → parts) ──► encrypted snapshot ─────────────────────┘
 ```
 
+```mermaid
+flowchart TD
+    A[File] --> B[Split into 4 MiB segments]
+    B --> C[Encrypt with per-file key]
+    C --> D[Select least-used Telegram account]
+    D --> E[Store encrypted parts in Saved Messages]
+    F[SQLite paths and parts index] --> G[Encrypted index snapshot]
+    G --> E
+    E --> H[Rebuild or retrieve file]
+```
+
 - Each vault has one 256-bit **master key**, shown once as the recovery key. Each file gets its own
   key derived with HKDF from the master key and a random content id.
 - Parts are sealed in 4 MiB segments, each with its own nonce and with the file id, part number and
